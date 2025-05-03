@@ -14,60 +14,65 @@ public class RelayContext : ApplicationContext
     private string _cmdA;
     private string _cmdE;
 
-    public MyCustomApplicationContext(string cmdA, string cmdE)
+    public RelayContext(string cmdA, string cmdE)
     {
         _cmdA = cmdA;
         _cmdE = cmdE;
 
-        // 初始化通知栏图标
         notifyIcon = new NotifyIcon()
         {
-            // 使用系统默认图标，你也可以通过 Icon.ExtractAssociatedIcon 提取图标
-            Icon = SystemIcons.Shield,
+            Icon = SystemIcons.Application,
             ContextMenu = new ContextMenu(new MenuItem[] {
-                    new MenuItem("退出", (s, e) => ExitThread())
+                    new MenuItem("退出监控", (s, e) => ExitThread())
                 }),
-            Text = $"监控中: {cmdA}",
+            Text = "进程监控工具运行中",
             Visible = true
         };
 
         StartMonitoring();
     }
 
-    private async void StartMonitoring()
+    private void StartMonitoring()
     {
         try
         {
-            // 1. 启动第一个进程 (A)
-            ProcessStartInfo startInfoA = ParseCommand(_cmdA);
-            using (Process procA = Process.Start(startInfoA))
+            // 解析命令和参数
+            var startInfoA = ParseCommand(_cmdA);
+            Process procA = new Process { StartInfo = startInfoA };
+
+            // 重要：在 .NET Framework 中开启事件支持
+            procA.EnableRaisingEvents = true;
+
+            // 订阅退出事件
+            procA.Exited += (sender, e) =>
             {
-                if (procA == null) throw new Exception("无法启动进程 A");
+                // 进程 A 退出后，执行进程 E
+                try
+                {
+                    Process.Start(ParseCommand(_cmdE));
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("启动结束进程失败: " + ex.Message);
+                }
+                finally
+                {
+                    // 结束本程序
+                    ExitThread();
+                }
+            };
 
-                // 2. 持续监控直到退出
-                // 使用异步等待，避免阻塞 UI 线程（保证通知栏图标响应）
-                await procA.WaitForExitAsync();
-            }
-
-            // 3. 执行第二个进程 (E)
-            ProcessStartInfo startInfoE = ParseCommand(_cmdE);
-            Process.Start(startInfoE);
+            procA.Start();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"运行出错: {ex.Message}");
-        }
-        finally
-        {
-            // 4. 完成任务后退出本程序
+            MessageBox.Show("监控启动失败: " + ex.Message);
             ExitThread();
         }
     }
 
     private ProcessStartInfo ParseCommand(string command)
     {
-        // 处理带参数的字符串（例如：notepad.exe C:\1.txt）
-        // 简单处理：取第一个空格前的作为文件名，剩下的作为参数
         command = command.Trim();
         string fileName;
         string arguments = "";
@@ -91,13 +96,12 @@ public class RelayContext : ApplicationContext
                 fileName = command;
             }
         }
-
         return new ProcessStartInfo(fileName, arguments) { UseShellExecute = true };
     }
 
     protected override void ExitThreadCore()
     {
-        notifyIcon.Visible = false; // 退出前隐藏图标，防止图标残留在通知栏
+        if (notifyIcon != null) notifyIcon.Visible = false;
         base.ExitThreadCore();
     }
 }

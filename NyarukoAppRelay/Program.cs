@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Drawing;
-using System.Linq;
 using System.Windows.Forms;
 
 namespace TrayMonitorApp
@@ -20,12 +19,12 @@ namespace TrayMonitorApp
 
             if (string.IsNullOrEmpty(cmdA) || string.IsNullOrEmpty(cmdE))
             {
-                MessageBox.Show("参数缺失！用法示例：\n/A \"notepad.exe\" /E \"cmd.exe\"", "错误");
+                MessageBox.Show("用法示例：YourApp.exe /A \"notepad.exe\" /E \"cmd.exe\"", "参数缺失");
                 return;
             }
 
-            // 使用 ApplicationContext 运行，不显示窗体
-            Application.Run(new MyCustomApplicationContext(cmdA, cmdE));
+            // 启动无窗口上下文
+            Application.Run(new RelayContext(cmdA, cmdE));
         }
 
         static string GetArgValue(string[] args, string key)
