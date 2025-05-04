@@ -10,63 +10,73 @@ using System.Windows.Forms;
 /// </summary>
 public class RelayContext : ApplicationContext
 {
-    private NotifyIcon notifyIcon;
+    private NotifyIcon _trayIcon;
     private string _cmdA;
     private string _cmdE;
+    private Icon _customIcon;
 
-    public RelayContext(string cmdA, string cmdE)
+    public RelayContext(string cmdA, string cmdE, string iconPath, string title)
     {
         _cmdA = cmdA;
         _cmdE = cmdE;
 
-        notifyIcon = new NotifyIcon()
+        // 尝试加载自定义图标
+        Icon displayIcon = SystemIcons.Application; // 默认图标
+        if (!string.IsNullOrEmpty(iconPath) && File.Exists(iconPath))
         {
-            Icon = SystemIcons.Application,
+            try
+            {
+                _customIcon = new Icon(iconPath);
+                displayIcon = _customIcon;
+            }
+            catch
+            {
+                // 如果图标文件格式错误，保持默认
+            }
+        }
+
+        _trayIcon = new NotifyIcon()
+        {
+            Icon = displayIcon,
+            // Windows 通知栏 Text 长度限制为 127 字符
+            Text = title.Length > 127 ? title.Substring(0, 124) + "..." : title,
             ContextMenu = new ContextMenu(new MenuItem[] {
-                    new MenuItem("退出监控", (s, e) => ExitThread())
+                    new MenuItem("退出 NyarukoAppRelay", (s, e) => ExitThread())
                 }),
-            Text = "进程监控工具运行中",
             Visible = true
         };
 
-        StartMonitoring();
+        ExecuteRelay();
     }
 
-    private void StartMonitoring()
+    private void ExecuteRelay()
     {
         try
         {
-            // 解析命令和参数
-            var startInfoA = ParseCommand(_cmdA);
+            ProcessStartInfo startInfoA = ParseCommand(_cmdA);
             Process procA = new Process { StartInfo = startInfoA };
-
-            // 重要：在 .NET Framework 中开启事件支持
             procA.EnableRaisingEvents = true;
 
-            // 订阅退出事件
-            procA.Exited += (sender, e) =>
+            procA.Exited += (s, e) =>
             {
-                // 进程 A 退出后，执行进程 E
                 try
                 {
                     Process.Start(ParseCommand(_cmdE));
                 }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("启动结束进程失败: " + ex.Message);
-                }
+                catch { }
                 finally
                 {
-                    // 结束本程序
                     ExitThread();
                 }
             };
 
-            procA.Start();
+            if (!procA.Start())
+            {
+                ExitThread();
+            }
         }
-        catch (Exception ex)
+        catch
         {
-            MessageBox.Show("监控启动失败: " + ex.Message);
             ExitThread();
         }
     }
@@ -80,8 +90,12 @@ public class RelayContext : ApplicationContext
         if (command.StartsWith("\""))
         {
             int nextQuote = command.IndexOf("\"", 1);
-            fileName = command.Substring(1, nextQuote - 1);
-            arguments = command.Substring(nextQuote + 1).Trim();
+            if (nextQuote != -1)
+            {
+                fileName = command.Substring(1, nextQuote - 1);
+                arguments = command.Substring(nextQuote + 1).Trim();
+            }
+            else { fileName = command; }
         }
         else
         {
@@ -91,17 +105,22 @@ public class RelayContext : ApplicationContext
                 fileName = command.Substring(0, firstSpace);
                 arguments = command.Substring(firstSpace + 1).Trim();
             }
-            else
-            {
-                fileName = command;
-            }
+            else { fileName = command; }
         }
         return new ProcessStartInfo(fileName, arguments) { UseShellExecute = true };
     }
 
     protected override void ExitThreadCore()
     {
-        if (notifyIcon != null) notifyIcon.Visible = false;
+        if (_trayIcon != null)
+        {
+            _trayIcon.Visible = false;
+            _trayIcon.Dispose();
+        }
+        if (_customIcon != null)
+        {
+            _customIcon.Dispose(); // 释放外部图标资源
+        }
         base.ExitThreadCore();
     }
 }

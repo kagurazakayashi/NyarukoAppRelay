@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 
-namespace TrayMonitorApp
+namespace NyarukoAppRelay
 {
     static class Program
     {
@@ -16,15 +17,16 @@ namespace TrayMonitorApp
             // 解析参数
             string cmdA = GetArgValue(args, "/A");
             string cmdE = GetArgValue(args, "/E");
+            string iconPath = GetArgValue(args, "/I");
+            string trayTitle = GetArgValue(args, "/T") ?? "NyarukoAppRelay 正在监控...";
 
+            // 核心参数缺失则直接退出
             if (string.IsNullOrEmpty(cmdA) || string.IsNullOrEmpty(cmdE))
             {
-                MessageBox.Show("用法示例：YourApp.exe /A \"notepad.exe\" /E \"cmd.exe\"", "参数缺失");
                 return;
             }
 
-            // 启动无窗口上下文
-            Application.Run(new RelayContext(cmdA, cmdE));
+            Application.Run(new RelayContext(cmdA, cmdE, iconPath, trayTitle));
         }
 
         static string GetArgValue(string[] args, string key)
