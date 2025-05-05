@@ -14,17 +14,12 @@ namespace NyarukoAppRelay
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // 解析参数
             string cmdA = GetArgValue(args, "/A");
             string cmdE = GetArgValue(args, "/E");
             string iconPath = GetArgValue(args, "/I");
             string trayTitle = GetArgValue(args, "/T") ?? "NyarukoAppRelay 正在监控...";
 
-            // 核心参数缺失则直接退出
-            if (string.IsNullOrEmpty(cmdA) || string.IsNullOrEmpty(cmdE))
-            {
-                return;
-            }
+            if (string.IsNullOrEmpty(cmdA) || string.IsNullOrEmpty(cmdE)) return;
 
             Application.Run(new RelayContext(cmdA, cmdE, iconPath, trayTitle));
         }
@@ -34,9 +29,7 @@ namespace NyarukoAppRelay
             for (int i = 0; i < args.Length; i++)
             {
                 if (args[i].Equals(key, StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length)
-                {
                     return args[i + 1];
-                }
             }
             return null;
         }

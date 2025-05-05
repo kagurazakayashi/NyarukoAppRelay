@@ -13,32 +13,19 @@ public class RelayContext : ApplicationContext
     private NotifyIcon _trayIcon;
     private string _cmdA;
     private string _cmdE;
-    private Icon _customIcon;
+    private Icon _customIcon; // 用于存储需要手动释放的图标资源
 
     public RelayContext(string cmdA, string cmdE, string iconPath, string title)
     {
         _cmdA = cmdA;
         _cmdE = cmdE;
 
-        // 尝试加载自定义图标
-        Icon displayIcon = SystemIcons.Application; // 默认图标
-        if (!string.IsNullOrEmpty(iconPath) && File.Exists(iconPath))
-        {
-            try
-            {
-                _customIcon = new Icon(iconPath);
-                displayIcon = _customIcon;
-            }
-            catch
-            {
-                // 如果图标文件格式错误，保持默认
-            }
-        }
+        // 调用改进后的图标加载逻辑
+        Icon displayIcon = LoadDisplayIcon(iconPath);
 
         _trayIcon = new NotifyIcon()
         {
             Icon = displayIcon,
-            // Windows 通知栏 Text 长度限制为 127 字符
             Text = title.Length > 127 ? title.Substring(0, 124) + "..." : title,
             ContextMenu = new ContextMenu(new MenuItem[] {
                     new MenuItem("退出 NyarukoAppRelay", (s, e) => ExitThread())
@@ -47,6 +34,36 @@ public class RelayContext : ApplicationContext
         };
 
         ExecuteRelay();
+    }
+
+    private Icon LoadDisplayIcon(string path)
+    {
+        if (string.IsNullOrEmpty(path) || !File.Exists(path))
+            return SystemIcons.Application;
+
+        try
+        {
+            string extension = Path.GetExtension(path).ToLower();
+
+            if (extension == ".exe" || extension == ".dll" || extension == ".lnk")
+            {
+                // 从可执行文件或快捷方式中提取关联图标
+                // 注意：ExtractAssociatedIcon 返回的是一个新的 Icon 对象
+                _customIcon = Icon.ExtractAssociatedIcon(path);
+                return _customIcon;
+            }
+            else
+            {
+                // 按标准图标文件加载
+                _customIcon = new Icon(path);
+                return _customIcon;
+            }
+        }
+        catch
+        {
+            // 如果文件损坏或不是合法的图标源，返回系统默认图标
+            return SystemIcons.Application;
+        }
     }
 
     private void ExecuteRelay()
@@ -59,26 +76,14 @@ public class RelayContext : ApplicationContext
 
             procA.Exited += (s, e) =>
             {
-                try
-                {
-                    Process.Start(ParseCommand(_cmdE));
-                }
+                try { Process.Start(ParseCommand(_cmdE)); }
                 catch { }
-                finally
-                {
-                    ExitThread();
-                }
+                finally { ExitThread(); }
             };
 
-            if (!procA.Start())
-            {
-                ExitThread();
-            }
+            if (!procA.Start()) ExitThread();
         }
-        catch
-        {
-            ExitThread();
-        }
+        catch { ExitThread(); }
     }
 
     private ProcessStartInfo ParseCommand(string command)
@@ -119,7 +124,7 @@ public class RelayContext : ApplicationContext
         }
         if (_customIcon != null)
         {
-            _customIcon.Dispose(); // 释放外部图标资源
+            _customIcon.Dispose();
         }
         base.ExitThreadCore();
     }
