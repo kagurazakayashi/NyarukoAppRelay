@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Windows.Forms;
 
 namespace NyarukoAppRelay
@@ -20,33 +21,42 @@ namespace NyarukoAppRelay
             string iconPath = GetArgValue(args, "/I");
             string trayTitle = GetArgValue(args, "/T");
 
-            // 1. 如果没有提供 /A，显示嵌入的帮助文档并退出
+            // 1. 如果没有提供 /A，尝试显示帮助文档
             if (string.IsNullOrEmpty(cmdA))
             {
-                ShowHelp();
+                if (!ShowHelp())
+                {
+                    // 2. 如果找不到帮助文档，立即退出程序
+                    return;
+                }
                 return;
             }
 
             Application.Run(new RelayContext(cmdA, cmdE, iconPath, trayTitle));
         }
 
-        static void ShowHelp()
+        static bool ShowHelp()
         {
             try
             {
                 var assembly = Assembly.GetExecutingAssembly();
-                // 注意：资源名称通常是 "命名空间.文件名.txt"
                 string resourceName = "NyarukoAppRelay.help.txt";
                 using (Stream stream = assembly.GetManifestResourceStream(resourceName))
-                using (StreamReader reader = new StreamReader(stream))
                 {
-                    string helpContent = reader.ReadToEnd();
-                    MessageBox.Show(helpContent, "NyarukoAppRelay 使用帮助");
+                    if (stream == null) return false; // 找不到资源，返回 false
+
+                    // 使用 Encoding.UTF8 并配合带 BOM 的文件可解决乱码
+                    using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
+                    {
+                        string helpContent = reader.ReadToEnd();
+                        MessageBox.Show(helpContent, "NyarukoAppRelay 使用帮助");
+                        return true;
+                    }
                 }
             }
             catch
             {
-                MessageBox.Show("未找到帮助文件。用法示例：NyarukoAppRelay.exe /A \"notepad.exe\" /E \"calc.exe\"", "错误");
+                return false;
             }
         }
 

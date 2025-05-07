@@ -23,7 +23,7 @@ public class RelayContext : ApplicationContext
         _customTitle = title;
         _startTime = DateTime.Now;
 
-        // 图标逻辑：优先 /I，其次提取 /A 的图标，最后默认
+        // 图标加载逻辑
         Icon displayIcon = LoadSmartIcon(iconPath, _cmdA);
 
         _trayIcon = new NotifyIcon()
@@ -35,11 +35,10 @@ public class RelayContext : ApplicationContext
                 })
         };
 
-        // 启动定时器更新提示信息
-        _updateTimer = new Timer { Interval = 1000 }; // 每秒更新一次
+        _updateTimer = new Timer { Interval = 1000 };
         _updateTimer.Tick += (s, e) => UpdateTooltip();
         _updateTimer.Start();
-        UpdateTooltip(); // 立即执行一次
+        UpdateTooltip();
 
         ExecuteRelay();
     }
@@ -48,14 +47,14 @@ public class RelayContext : ApplicationContext
     {
         try
         {
-            // 情况 1: 用户指定了图标
+            // 1. 优先使用 /I 指定的图标
             if (!string.IsNullOrEmpty(iPath) && File.Exists(iPath))
             {
                 if (Path.GetExtension(iPath).ToLower() == ".ico") return _managedIcon = new Icon(iPath);
                 return _managedIcon = Icon.ExtractAssociatedIcon(iPath);
             }
 
-            // 情况 2: 尝试从 /A 的 EXE 中提取
+            // 2. 其次尝试提取 /A 中的 EXE 图标
             string exePath = ExtractExePath(aCmd);
             if (File.Exists(exePath))
             {
@@ -64,7 +63,15 @@ public class RelayContext : ApplicationContext
         }
         catch { }
 
-        return SystemIcons.Application; // 兜底默认图标
+        // 3. 最后使用本程序自身的图标
+        try
+        {
+            return _managedIcon = Icon.ExtractAssociatedIcon(Assembly.GetExecutingAssembly().Location);
+        }
+        catch
+        {
+            return SystemIcons.Application; // 极度兜底
+        }
     }
 
     private string ExtractExePath(string command)
@@ -84,12 +91,11 @@ public class RelayContext : ApplicationContext
         TimeSpan duration = DateTime.Now - _startTime;
         string timeStr = $"{(int)duration.TotalHours:D2}:{duration.Minutes:D2}:{duration.Seconds:D2}";
 
-        string info = $"{(string.IsNullOrEmpty(_customTitle) ? "NyarukoRelay" : _customTitle)}\n" +
+        string info = $"{(string.IsNullOrEmpty(_customTitle) ? "NyarukoAppRelay" : _customTitle)}\n" +
                       $"A: {Path.GetFileName(ExtractExePath(_cmdA))}\n" +
                       $"E: {(string.IsNullOrEmpty(_cmdE) ? "无" : Path.GetFileName(ExtractExePath(_cmdE)))}\n" +
                       $"运行时长: {timeStr}";
 
-        // 截断以防超过通知栏长度限制
         _trayIcon.Text = info.Length > 127 ? info.Substring(0, 124) + "..." : info;
     }
 
@@ -103,26 +109,34 @@ public class RelayContext : ApplicationContext
             {
                 if (!string.IsNullOrEmpty(_cmdE))
                 {
-                    try { Process.Start(ParseCommand(_cmdE)); } catch { }
+                    try
+                    {
+                        Process.Start(ParseCommand(_cmdE));
+                    }
+                    catch (Exception ex)
+                    {
+                        // 如果 /E 执行失败，弹出提示并退出
+                        MessageBox.Show($"/E 执行失败: {ex.Message}", "运行错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 }
                 ExitThread();
             };
 
-            if (!procA.Start()) ExitThread();
+            if (!procA.Start()) throw new Exception("进程 A 启动返回 false");
         }
         catch (Exception ex)
         {
-            MessageBox.Show("执行失败: " + ex.Message);
+            // 如果 /A 执行失败，弹出提示并退出
+            MessageBox.Show($"/A 执行失败: {ex.Message}", "运行错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             ExitThread();
         }
     }
 
     private ProcessStartInfo ParseCommand(string cmd)
     {
-        string path = ExtractExePath(cmd);
-        string args = cmd.Length > path.Length ? cmd.Substring(cmd.IndexOf(path) + path.Length).Trim() : "";
-        // 如果路径带引号，需要去掉引号后传给 ProcessStartInfo
-        path = path.Replace("\"", "");
+        string path = ExtractExePath(cmd).Replace("\"", "");
+        string args = cmd.Length > path.Length ? cmd.Substring(cmd.IndexOf(path) + path.Length).Trim().Trim('\"') : "";
+        // 如果命令行整体有引号包裹逻辑，这里需要微调确保参数正确
         return new ProcessStartInfo(path, args) { UseShellExecute = true };
     }
 
