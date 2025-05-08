@@ -21,14 +21,9 @@ namespace NyarukoAppRelay
             string iconPath = GetArgValue(args, "/I");
             string trayTitle = GetArgValue(args, "/T");
 
-            // 1. 如果没有提供 /A，尝试显示帮助文档
             if (string.IsNullOrEmpty(cmdA))
             {
-                if (!ShowHelp())
-                {
-                    // 2. 如果找不到帮助文档，立即退出程序
-                    return;
-                }
+                if (!ShowHelp()) return;
                 return;
             }
 
@@ -43,21 +38,15 @@ namespace NyarukoAppRelay
                 string resourceName = "NyarukoAppRelay.help.txt";
                 using (Stream stream = assembly.GetManifestResourceStream(resourceName))
                 {
-                    if (stream == null) return false; // 找不到资源，返回 false
-
-                    // 使用 Encoding.UTF8 并配合带 BOM 的文件可解决乱码
+                    if (stream == null) return false;
                     using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
                     {
-                        string helpContent = reader.ReadToEnd();
-                        MessageBox.Show(helpContent, "NyarukoAppRelay 使用帮助");
+                        MessageBox.Show(reader.ReadToEnd(), "NyarukoAppRelay 使用帮助");
                         return true;
                     }
                 }
             }
-            catch
-            {
-                return false;
-            }
+            catch { return false; }
         }
 
         static string GetArgValue(string[] args, string key)
