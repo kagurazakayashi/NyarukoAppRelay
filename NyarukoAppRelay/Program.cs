@@ -9,42 +9,42 @@ using System.Windows.Forms;
 namespace NyarukoAppRelay
 {
     /// <summary>
-    /// 程式主要入口類別
+    /// 程式啟動類別
     /// </summary>
     static class Program
     {
         /// <summary>
-        /// 應用程式的主要進入點
+        /// 應用程式進入點
         /// </summary>
-        /// <param name="args">命令列參數</param>
         [STAThread]
         static void Main(string[] args)
         {
-            // 啟用應用程式視覺樣式與文字渲染設定
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // 取得命令列參數值
+            // 取得各項參數值
             string cmdA = GetArgValue(args, "/A");
             string cmdE = GetArgValue(args, "/E");
             string iconPath = GetArgValue(args, "/I");
             string trayTitle = GetArgValue(args, "/T");
 
-            // 若未提供必要的 /A 參數，則嘗試顯示幫助內容
+            // 檢查是否存在 /W 參數以決定是否啟用視窗監控模式
+            bool useWindowMode = HasArg(args, "/W");
+
+            // 若缺少核心參數 /A 則顯示說明文件
             if (string.IsNullOrEmpty(cmdA))
             {
                 if (!ShowHelp()) return;
                 return;
             }
 
-            // 啟動無表單的背景執行內容
-            Application.Run(new RelayContext(cmdA, cmdE, iconPath, trayTitle));
+            // 執行背景監控上下文
+            Application.Run(new RelayContext(cmdA, cmdE, iconPath, trayTitle, useWindowMode));
         }
 
         /// <summary>
-        /// 從內嵌資源讀取並顯示說明文件
+        /// 顯示內嵌的說明文件
         /// </summary>
-        /// <returns>若讀取並顯示成功傳回 true，否則傳回 false</returns>
         static bool ShowHelp()
         {
             try
@@ -54,7 +54,6 @@ namespace NyarukoAppRelay
                 using (Stream stream = assembly.GetManifestResourceStream(resourceName))
                 {
                     if (stream == null) return false;
-                    // 使用 UTF8 編碼讀取內嵌的文本資源
                     using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
                     {
                         MessageBox.Show(reader.ReadToEnd(), "NyarukoAppRelay 使用帮助");
@@ -66,11 +65,20 @@ namespace NyarukoAppRelay
         }
 
         /// <summary>
-        /// 解析命令列陣列以獲取指定鍵的值
+        /// 判斷是否存在指定的參數開關
         /// </summary>
-        /// <param name="args">參數陣列</param>
-        /// <param name="key">參數名稱 (如 /A)</param>
-        /// <returns>參數值，若不存在則傳回 null</returns>
+        static bool HasArg(string[] args, string key)
+        {
+            foreach (var arg in args)
+            {
+                if (arg.Equals(key, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 取得參數鍵對應的數值
+        /// </summary>
         static string GetArgValue(string[] args, string key)
         {
             for (int i = 0; i < args.Length; i++)
