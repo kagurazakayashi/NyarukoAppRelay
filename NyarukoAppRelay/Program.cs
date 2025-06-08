@@ -47,7 +47,9 @@ namespace NyarukoAppRelay
                     if (stream == null) return false;
                     using (StreamReader reader = new StreamReader(stream, Encoding.UTF8))
                     {
-                        MessageBox.Show(reader.ReadToEnd(), "NyarukoAppRelay 使用帮助");
+                        AssemblyName assemblyName = assembly.GetName();
+                        string assemblyVersion = assemblyName.Version?.ToString() ?? "";
+                        MessageBox.Show(reader.ReadToEnd(), "NyarukoAppRelay v" + assemblyVersion + " by KagurazakaYashi");
                         return true;
                     }
                 }

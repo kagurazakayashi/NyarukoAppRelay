@@ -1,9 +1,11 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 
 /// <summary>
@@ -11,7 +13,7 @@ using System.Windows.Forms;
 /// </summary>
 public class RelayContext : ApplicationContext
 {
-    // 匯入 Win32 API 用於枚舉視窗
+    // --- Win32 API 宣告 ---
     [DllImport("user32.dll")]
     private static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
 
@@ -20,6 +22,12 @@ public class RelayContext : ApplicationContext
 
     [DllImport("user32.dll")]
     private static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    private static extern int GetWindowTextLength(IntPtr hWnd);
 
     private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -34,6 +42,9 @@ public class RelayContext : ApplicationContext
     private bool _useWindowMode;
     private bool _windowHasAppeared = false;
 
+    /// <summary>
+    /// 建構式：初始化系統匣圖示與事件監聽
+    /// </summary>
     public RelayContext(string cmdA, string cmdE, string iconPath, string title, bool useWindowMode)
     {
         _cmdA = cmdA;
@@ -47,9 +58,13 @@ public class RelayContext : ApplicationContext
             Icon = LoadSmartIcon(iconPath, _cmdA),
             Visible = true,
             ContextMenu = new ContextMenu(new MenuItem[] {
-                    new MenuItem("退出程序", (s, e) => FinalExit())
+                    new MenuItem("详细信息(&D)", (s, e) => ShowDetailedMessage()),
+                    new MenuItem("退出程序(&X)", (s, e) => FinalExit()),
                 })
         };
+
+        // 註冊滑鼠點擊事件處理
+        _trayIcon.MouseClick += TrayIcon_MouseClick;
 
         _statusTimer = new Timer { Interval = 1000 };
         _statusTimer.Tick += (s, e) => {
@@ -68,8 +83,89 @@ public class RelayContext : ApplicationContext
     }
 
     /// <summary>
-    /// 計算指定處理序當前開啟的視窗數量
+    /// 處理系統匣圖示點擊事件
     /// </summary>
+    private void TrayIcon_MouseClick(object sender, MouseEventArgs e)
+    {
+        // 僅回應滑鼠左鍵點擊
+        if (e.Button == MouseButtons.Left)
+        {
+            ShowDetailedMessage();
+        }
+    }
+
+    /// <summary>
+    /// 顯示詳細資訊彈窗（簡體中文顯示）
+    /// </summary>
+    private void ShowDetailedMessage()
+    {
+        TimeSpan duration = DateTime.Now - _startTime;
+        string timeStr = $"{(int)duration.TotalHours}小时 {duration.Minutes}分 {duration.Seconds}秒";
+
+        int winCount = 0;
+        string windowListText = "无可见窗口";
+        const string emsp = "　";
+        if (_procA != null && !_procA.HasExited)
+        {
+            var titles = GetWindowDetails(_procA.Id);
+            winCount = titles.Count;
+            if (winCount > 0)
+                windowListText = string.Join("\n" + emsp, titles);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine(_customTitle ?? "NyarukoAppRelay");
+        sb.AppendLine();
+        sb.AppendLine($"执行程序:");
+        sb.AppendLine(emsp + _cmdA);
+        sb.AppendLine($"程序结束后运行:");
+        sb.AppendLine(emsp + (_cmdE ?? "未指定"));
+        sb.AppendLine($"监控模式: {(_useWindowMode ? "窗口监控模式" : "进程监控模式")}");
+        sb.AppendLine($"运行时长: {timeStr}");
+        sb.AppendLine($"程序开启的窗口 ( {winCount} ):");
+        sb.AppendLine(emsp + windowListText);
+        sb.AppendLine();
+        sb.AppendLine("要停止监控吗？");
+
+        Assembly assembly = Assembly.GetExecutingAssembly();
+        AssemblyName assemblyName = assembly.GetName();
+        string assemblyVersion = assemblyName.Version?.ToString() ?? "";
+
+        if (MessageBox.Show(sb.ToString(), "NyarukoAppRelay v" + assemblyVersion + " by KagurazakaYashi", MessageBoxButtons.YesNo) == DialogResult.Yes)
+        {
+            FinalExit();
+        }
+    }
+
+    /// <summary>
+    /// 獲取指定 PID 的所有可見視窗標題列表
+    /// </summary>
+    private List<string> GetWindowDetails(int processId)
+    {
+        List<string> titles = new List<string>();
+        EnumWindows((hWnd, lParam) =>
+        {
+            uint windowPid;
+            GetWindowThreadProcessId(hWnd, out windowPid);
+            if (windowPid == processId && IsWindowVisible(hWnd))
+            {
+                int length = GetWindowTextLength(hWnd);
+                if (length > 0)
+                {
+                    StringBuilder sb = new StringBuilder(length + 1);
+                    GetWindowText(hWnd, sb, sb.Capacity);
+                    titles.Add(sb.ToString());
+                }
+                else
+                {
+                    titles.Add("(无标题窗口)");
+                }
+            }
+            return true;
+        }, IntPtr.Zero);
+        return titles;
+    }
+
     private int GetWindowCount(int processId)
     {
         int count = 0;
@@ -77,11 +173,7 @@ public class RelayContext : ApplicationContext
         {
             uint windowPid;
             GetWindowThreadProcessId(hWnd, out windowPid);
-            // 僅計算 PID 匹配且目前可見的視窗
-            if (windowPid == processId && IsWindowVisible(hWnd))
-            {
-                count++;
-            }
+            if (windowPid == processId && IsWindowVisible(hWnd)) count++;
             return true;
         }, IntPtr.Zero);
         return count;
@@ -98,17 +190,9 @@ public class RelayContext : ApplicationContext
                 HandleProcAEnd();
                 return;
             }
-
-            // 透過 Win32 API 檢查視窗是否存在
             int windowCount = GetWindowCount(_procA.Id);
-            if (windowCount > 0)
-            {
-                _windowHasAppeared = true;
-            }
-            else if (_windowHasAppeared)
-            {
-                HandleProcAEnd();
-            }
+            if (windowCount > 0) _windowHasAppeared = true;
+            else if (_windowHasAppeared) HandleProcAEnd();
         }
         catch { }
     }
@@ -172,8 +256,8 @@ public class RelayContext : ApplicationContext
         fname1 = fname1.Length > 16 ? fname1.Substring(0, 12) + "..." : fname1;
         string fname2 = string.IsNullOrEmpty(_cmdE) ? "无" : Path.GetFileName(ExtractExePath(_cmdE));
         fname2 = fname2.Length > 16 ? fname2.Substring(0, 12) + "..." : fname2;
-        string info = $"{(string.IsNullOrEmpty(_customTitle) ? "NyarukoAppRelay" : (_customTitle.Length > 16 ? _customTitle.Substring(0, 12) + "..." : _customTitle))}\n" +
-                      $"{fname1}\n" +
+        string info = $"{(string.IsNullOrEmpty(_customTitle) ? "NyarukoAppRelay" : (_customTitle.Length > 32 ? _customTitle.Substring(0, 28) + "..." : _customTitle))}\n" +
+                      //$"{fname1}\n" +
                       //$"结束: {fname2}\n" +
                       $"窗口数量: {winCount}\n" +
                       $"运行时长: {timeStr}";

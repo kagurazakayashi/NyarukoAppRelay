@@ -4,7 +4,6 @@
     <Platform Name="x64" />
   </Configurations>
   <Project Path="NyarukoAppRelay/NyarukoAppRelay.csproj" Id="7d0fed22-7650-4484-91be-340cccc60f66">
-    <BuildType Solution="Debug|x64" Project="Release" />
     <Platform Solution="*|x64" Project="x64" />
   </Project>
 </Solution>
