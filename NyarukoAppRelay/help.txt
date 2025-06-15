@@ -1,4 +1,4 @@
-﻿NyarukoAppRelay v1.0 by 神楽坂雅詩
+﻿NyarukoAppRelay v1.2 by 神楽坂雅詩
 该程序用于启动一个软件，并监控这个软件是否退出。如果该软件退出，就执行另一条命令并结束。
 
 使用方法：
