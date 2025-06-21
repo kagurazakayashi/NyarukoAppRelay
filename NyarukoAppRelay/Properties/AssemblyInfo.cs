@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Resources;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -6,12 +7,12 @@ using System.Runtime.InteropServices;
 // 控制。更改这些特性值可修改
 // 与程序集关联的信息。
 [assembly: AssemblyTitle("NyarukoAppRelay")]
-[assembly: AssemblyDescription("该程序用于启动一个软件，并监控这个软件是否退出。如果该软件退出，就执行另一条命令并结束。")]
+[assembly: AssemblyDescription("程序结束后运行另一个程序")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("KagurazakaYashi")]
 [assembly: AssemblyProduct("NyarukoAppRelay")]
-[assembly: AssemblyCopyright("KagurazakaYashi")]
-[assembly: AssemblyTrademark("")]
+[assembly: AssemblyCopyright("Copyright (c) 2025 KagurazakaYashi NyarukoAppRelay is licensed under Mulan PSL v2.")]
+[assembly: AssemblyTrademark("KagurazakaMiyabi")]
 [assembly: AssemblyCulture("")]
 
 // 将 ComVisible 设置为 false 会使此程序集中的类型
@@ -29,5 +30,6 @@ using System.Runtime.InteropServices;
 //      生成号
 //      修订号
 //
-[assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]
+[assembly: NeutralResourcesLanguage("zh-Hans")]
